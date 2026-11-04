@@ -66,7 +66,7 @@ export function notesActions(o: NotesActionsOptions): NoteAction<unknown, Result
 
 	const list: NoteAction<z.infer<typeof ListNotesInput>, Result> = {
 		name: "list_notes",
-		description: `Lista os caminhos das notas da base ${o.kbName} (opcional: só as de uma pasta, ex. "precos").`,
+		description: `Lista os caminhos das notas da base ${o.kbName}, relativos à base (ex.: AGENTS.md, precos/2026-10.md); opcional: só as de uma pasta, ex. "precos".`,
 		input: ListNotesInput,
 		async run({ folder }) {
 			if (!o.folder) return UNAVAILABLE;
@@ -78,7 +78,7 @@ export function notesActions(o: NotesActionsOptions): NoteAction<unknown, Result
 
 	const read: NoteAction<z.infer<typeof ReadNoteInput>, Result> = {
 		name: "read_note",
-		description: `Lê uma nota inteira da base ${o.kbName}. Devolve o texto e o sha, que write_note exige para alterar a nota.`,
+		description: `Lê uma nota inteira da base ${o.kbName}, pelo caminho relativo à base (como list_notes e search_notes devolvem, ex.: precos/2026-10.md). Devolve o texto e o sha, que write_note exige para alterar a nota.`,
 		input: ReadNoteInput,
 		async run({ path }) {
 			if (!o.folder) return UNAVAILABLE;
@@ -127,7 +127,7 @@ export function notesActions(o: NotesActionsOptions): NoteAction<unknown, Result
 
 	const write: NoteAction<z.infer<typeof WriteNoteInput>, Result> = {
 		name: "write_note",
-		description: `Cria ou substitui UMA nota da base ${o.kbName} com o texto completo final (com frontmatter e \`modified\` atualizado). Para alterar uma nota que existe, leia-a antes com read_note e passe o \`sha\` devolvido em base_sha; se a nota mudou desde então, a escrita é recusada.`,
+		description: `Cria ou substitui UMA nota da base ${o.kbName} (caminho relativo à base, ex.: precos/2026-11.md) com o texto completo final (com frontmatter e \`modified\` atualizado). Para alterar uma nota que existe, leia-a antes com read_note e passe o \`sha\` devolvido em base_sha; se a nota mudou desde então, a escrita é recusada.`,
 		input: WriteNoteInput,
 		async run({ path, full_text, base_sha, reason }) {
 			if (!o.folder) return UNAVAILABLE;
