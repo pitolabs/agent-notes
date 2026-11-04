@@ -44,9 +44,13 @@ export interface NotesIndex {
 	known(): Promise<{ path: string; sha256: string; state: NoteState; attempts: number }[]>;
 	/** Stores text + FTS (keyword search works at once), state pending, attempts 0, drops old chunks. Atomic. */
 	upsertText(row: Pick<NoteRow, "path" | "sha256" | "bytes" | "title" | "tags" | "modified" | "text">): Promise<void>;
-	/** Stores the chunks and marks the note indexed. Atomic. */
-	markIndexed(path: string, chunks: { text: string; vector: number[] }[], now?: Date): Promise<void>;
-	markFailed(path: string, error: string): Promise<void>;
+	/**
+	 * Stores the chunks and marks the note indexed, only if its row still has `sha256` (the text the chunks were made
+	 * from): vectors of an older text never land over a newer one. Atomic. False when the row moved on (or is gone).
+	 */
+	markIndexed(path: string, sha256: string, chunks: { text: string; vector: number[] }[], now?: Date): Promise<boolean>;
+	/** Counts a failed attempt, only if the row still has `sha256`. */
+	markFailed(path: string, sha256: string, error: string): Promise<void>;
 	remove(path: string): Promise<void>;
 	/**
 	 * Without a query: the filtered notes, most recently `modified` first. With one: keywords and, with queryVector,

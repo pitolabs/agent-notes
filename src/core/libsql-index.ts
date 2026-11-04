@@ -134,20 +134,29 @@ export class LibSQLNotesIndex implements NotesIndex {
 		);
 	}
 
-	async markIndexed(path: string, chunks: { text: string; vector: number[] }[], now = new Date()): Promise<void> {
+	async markIndexed(path: string, sha256: string, chunks: { text: string; vector: number[] }[], now = new Date()): Promise<boolean> {
+		// Every statement is conditioned on the row's sha, in one transaction: either all apply or none.
+		const current = "EXISTS (SELECT 1 FROM notes WHERE path = ? AND sha256 = ?)";
 		const stmts: InStatement[] = [
-			{ sql: "DELETE FROM chunks WHERE path = ?", args: [path] },
+			{ sql: `DELETE FROM chunks WHERE path = ? AND ${current}`, args: [path, path, sha256] },
 			...chunks.map((c, i) => ({
-				sql: "INSERT INTO chunks (path, position, text, embedding) VALUES (?, ?, ?, vector32(?))",
-				args: [path, i, c.text, JSON.stringify(c.vector)],
+				sql: `INSERT INTO chunks (path, position, text, embedding) SELECT ?, ?, ?, vector32(?) WHERE ${current}`,
+				args: [path, i, c.text, JSON.stringify(c.vector), path, sha256],
 			})),
-			{ sql: "UPDATE notes SET state = 'indexed', indexed_at = ?, error = NULL WHERE path = ?", args: [now.toISOString(), path] },
+			{
+				sql: "UPDATE notes SET state = 'indexed', indexed_at = ?, error = NULL WHERE path = ? AND sha256 = ?",
+				args: [now.toISOString(), path, sha256],
+			},
 		];
-		await this.db.batch(stmts, "write");
+		const results = await this.db.batch(stmts, "write");
+		return (results.at(-1)?.rowsAffected ?? 0) > 0;
 	}
 
-	async markFailed(path: string, error: string): Promise<void> {
-		await this.db.execute({ sql: "UPDATE notes SET state = 'failed', attempts = attempts + 1, error = ? WHERE path = ?", args: [error.slice(0, 500), path] });
+	async markFailed(path: string, sha256: string, error: string): Promise<void> {
+		await this.db.execute({
+			sql: "UPDATE notes SET state = 'failed', attempts = attempts + 1, error = ? WHERE path = ? AND sha256 = ?",
+			args: [error.slice(0, 500), path, sha256],
+		});
 	}
 
 	async remove(path: string): Promise<void> {

@@ -77,6 +77,10 @@ knows that is no longer on disk is removed. One note at a time. Indexing a note 
 (keyword search works at once), then embeds its chunks (paragraphs merged up to 1,400 characters, each prefixed with
 the note's title) and stores them; an embedding failure leaves the note `failed`, still findable by keywords.
 
+A sweep's step on one note and a `write_note` re-index never run at the same time, and the vectors are stored only if
+the note's row still has the sha they were made from: a slow embedding of an old text never lands over a newer one,
+even with two processes on one database.
+
 ## What is stored
 
 One libSQL database per folder: `notes` (path, sha256, bytes, title, tags, modified, body, state, attempts, error),

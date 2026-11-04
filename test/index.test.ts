@@ -74,6 +74,32 @@ describe("NotesIndexer.reconcile", () => {
 		expect(await again.indexer.reconcile()).toMatchObject({ retried: 1, failed: 0 });
 		expect(await again.index.get("rede.md")).toMatchObject({ state: "indexed" });
 	});
+
+	test("a sweep held while embedding the old text: once the note's row has moved on, its vectors are dropped", async () => {
+		const { dir, folder, index } = await setup({ "rede.md": "# Rede\nroteador antigo\n" });
+		const held = Promise.withResolvers<void>();
+		const called = Promise.withResolvers<void>();
+		const slow = {
+			model: MODEL,
+			dims: DIMS,
+			embed: async (texts: string[]) => {
+				called.resolve();
+				await held.promise;
+				return texts.map(bagOfWords);
+			},
+		};
+		const sweep = new NotesIndexer({ folder, index, embedder: slow, log: "[test]" }).reconcile();
+		await called.promise;
+		// While the sweep waits on the old text's vectors, the note changes and another writer of the same index (a
+		// second process on a shared database) indexes the new text completely.
+		writeFileSync(join(dir, "rede.md"), "# Rede\nfibra nova instalada\n");
+		await new NotesIndexer({ folder, index, embedder: stubEmbedder(), log: "[test]" }).touch("rede.md");
+		held.resolve();
+		expect(await sweep).toMatchObject({ added: 1, failed: 0 });
+		expect(await index.get("rede.md")).toMatchObject({ state: "indexed", text: "# Rede\nfibra nova instalada\n" });
+		const [hit] = await index.search({ queryVector: bagOfWords("roteador antigo"), limit: 1 });
+		expect(hit?.snippet).toBe("# Rede\nfibra nova instalada");
+	});
 });
 
 describe("LibSQLNotesIndex.search", () => {

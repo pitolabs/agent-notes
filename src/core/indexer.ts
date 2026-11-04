@@ -34,6 +34,8 @@ export interface ReconcileResult {
 export class NotesIndexer {
 	private timers: NodeJS.Timeout[] = [];
 	private sweep?: Promise<ReconcileResult>;
+	/** Every read-decide-write on the index runs here, one at a time (see serial). */
+	private queue: Promise<unknown> = Promise.resolve();
 	private now: () => Date;
 
 	constructor(private deps: NotesIndexerDeps) {
@@ -57,6 +59,17 @@ export class NotesIndexer {
 		this.timers = [];
 	}
 
+	/**
+	 * One step at a time over the index: a sweep's step for one note and a touch() never interleave, so a sweep that
+	 * embedded the old text can never store its chunks after touch() indexed the new one. Steps are per note, so a
+	 * touch() waits for at most one note of a running sweep, not the whole sweep.
+	 */
+	private serial<T>(step: () => Promise<T>): Promise<T> {
+		const run = this.queue.then(step);
+		this.queue = run.catch(() => undefined);
+		return run;
+	}
+
 	/** Single-flight: a call during another sweep gets the same promise. */
 	reconcile(): Promise<ReconcileResult> {
 		this.sweep ??= this.reconcileOnce().finally(() => {
@@ -67,36 +80,46 @@ export class NotesIndexer {
 
 	private async reconcileOnce(): Promise<ReconcileResult> {
 		const r: ReconcileResult = { added: 0, changed: 0, removed: 0, failed: 0, retried: 0 };
-		const known = new Map((await this.deps.index.known()).map((k) => [k.path, k]));
 		const onDisk = await this.deps.folder.listNotes();
-		const seen = new Set<string>();
-		// One note at a time: a folder of notes is small, and the embeddings provider sees one request at a time.
+		const seen = new Set(onDisk.map((n) => n.path));
+		// One note at a time: a folder of notes is small, and the embeddings provider sees one request at a time. Each
+		// step reads the file and the index row afresh, inside the queue.
 		for (const { path } of onDisk) {
-			seen.add(path);
-			const note = await this.deps.folder.readNote(path);
-			if (!note) continue;
-			const k = known.get(path);
-			let kind: "added" | "changed" | "retried" | undefined;
-			if (!k) kind = "added";
-			else if (k.sha256 !== note.sha) kind = "changed";
-			else if (k.state !== "indexed" && k.attempts < MAX_ATTEMPTS) kind = "retried";
-			if (!kind) continue;
-			r[kind]++;
-			if (!(await this.indexOne(path, note.text, note.sha, kind === "retried"))) r.failed++;
+			const step = await this.serial(async () => {
+				const note = await this.deps.folder.readNote(path);
+				if (!note) return undefined;
+				const k = await this.deps.index.get(path);
+				let kind: "added" | "changed" | "retried" | undefined;
+				if (!k) kind = "added";
+				else if (k.sha256 !== note.sha) kind = "changed";
+				else if (k.state !== "indexed" && k.attempts < MAX_ATTEMPTS) kind = "retried";
+				if (!kind) return undefined;
+				return { kind, ok: await this.indexOne(path, note.text, note.sha, kind === "retried") };
+			});
+			if (!step) continue;
+			r[step.kind]++;
+			if (!step.ok) r.failed++;
 		}
-		for (const path of known.keys()) {
+		for (const { path } of await this.deps.index.known()) {
 			if (seen.has(path)) continue;
-			await this.deps.index.remove(path);
-			r.removed++;
+			// Gone from the listing; a touch() may have written it since, so the disk is checked again in the step.
+			const removed = await this.serial(async () => {
+				if (await this.deps.folder.readNote(path)) return false;
+				await this.deps.index.remove(path);
+				return true;
+			});
+			if (removed) r.removed++;
 		}
 		return r;
 	}
 
 	/** Re-indexes one note now (after a write); a note that no longer exists is removed from the index. */
-	async touch(path: string): Promise<void> {
-		const note = await this.deps.folder.readNote(path);
-		if (!note) await this.deps.index.remove(path);
-		else await this.indexOne(note.path, note.text, note.sha);
+	touch(path: string): Promise<void> {
+		return this.serial(async () => {
+			const note = await this.deps.folder.readNote(path);
+			if (!note) await this.deps.index.remove(path);
+			else await this.indexOne(note.path, note.text, note.sha);
+		});
 	}
 
 	/**
@@ -124,15 +147,18 @@ export class NotesIndexer {
 						"document",
 					)
 				: [];
+			// False when the note's row moved on to a newer text meanwhile (another writer of this index): whoever
+			// stored that text indexes it, and these vectors, of the older text, are dropped.
 			await this.deps.index.markIndexed(
 				path,
+				sha,
 				chunks.map((c, i) => ({ text: c, vector: vectors[i] ?? [] })),
 				this.now(),
 			);
 			return true;
 		} catch (e) {
 			const err = safeError(e);
-			await this.deps.index.markFailed(path, err);
+			await this.deps.index.markFailed(path, sha, err);
 			console.warn(`${this.deps.log} note index failed: ${path}: ${err}`);
 			return false;
 		}
