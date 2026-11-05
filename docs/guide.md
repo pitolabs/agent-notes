@@ -86,6 +86,35 @@ The container runs as uid 1000: the folder must be writable by it for `write_not
 command, and mount the folder `:ro`). It runs fine with `--read-only` root filesystem, all capabilities dropped and 256
 MB of memory. To re-index (another model, a corrupt file): remove the `/data` volume.
 
+## Mastra, over MCP (the server in its own container)
+
+No client from this package is needed: Mastra's own `MCPClient` plugs the server in. Discover its tools on every run
+(`tools` and `instructions` as functions), so a server that goes down drops its tools and the agent can say so, and
+they come back on the first run after it returns:
+
+```ts
+import { Agent } from "@mastra/core/agent";
+import { MCPClient } from "@mastra/mcp";
+
+const notes = new MCPClient({
+	id: "clerk-notes",
+	servers: { notes: { url: new URL("http://notes:8070/mcp"), requestInit: { headers: { Authorization: `Bearer ${process.env.NOTES_TOKEN}` } } } },
+});
+const discover = () => notes.listToolsWithErrors({ perServerTimeoutMs: 3000 });
+
+export const clerk = new Agent({
+	id: "clerk",
+	name: "Clerk",
+	model: "openai/gpt-4o-mini",
+	instructions: async () =>
+		"notes" in (await discover()).errors ? "The notes base is down right now: say so." : "Answer from the notes; read a note before you state a fact from it.",
+	tools: async () => (await discover()).tools, // notes_list_notes, notes_read_note, notes_search_notes, notes_write_note
+});
+```
+
+Avoid `tools: await notes.listTools()` at module load: it snapshots the tools once, so a server down at start leaves
+the agent without them until a restart, and one that stops later leaves tools whose every call fails.
+
 ## Mastra, in process
 
 `notesTools(options)` returns the four tools keyed by id. Options:
