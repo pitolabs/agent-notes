@@ -1,6 +1,6 @@
 {
 	"name": "@pitolabs/agent-notes",
-	"version": "0.1.1",
+	"version": "0.1.2",
 	"description": "A folder of Markdown notes (an Obsidian vault) as an agent's knowledge base: read, sha-guarded writes, hybrid libSQL search (FTS5 + vectors); SDK, Mastra tools and an MCP server",
 	"type": "module",
 	"license": "MIT",

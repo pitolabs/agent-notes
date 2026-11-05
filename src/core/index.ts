@@ -8,6 +8,7 @@ export {
 	type NoteAction,
 	type NotesActionsOptions,
 	notesActions,
+	notesInstructions,
 	ReadNoteInput,
 	SearchNotesInput,
 	WriteNoteInput,

@@ -38,6 +38,9 @@ describe("agent-notes mcp over stdio", () => {
 		const client = await stdioClient(dir);
 		try {
 			expect((await client.listTools()).tools.map((t) => t.name)).toEqual(["list_notes", "read_note", "search_notes", "write_note"]);
+			// How to use the base reaches the client with the base's name, writing included.
+			expect(client.getInstructions()).toContain("Base de notas de teste");
+			expect(client.getInstructions()).toContain("base_sha");
 			const w = await client.callTool({ name: "write_note", arguments: { path: "jardim.md", full_text: "# Jardim\nRegar às terças.", reason: "nota nova" } });
 			expect(w.isError).toBe(false);
 			expect(w.structuredContent).toMatchObject({ path: "jardim.md", created: true });
@@ -55,6 +58,7 @@ describe("agent-notes mcp over stdio", () => {
 		const client = await stdioClient(notesDir(), ["--read-only"]);
 		try {
 			expect((await client.listTools()).tools.map((t) => t.name)).toEqual(["list_notes", "read_note", "search_notes"]);
+			expect(client.getInstructions()).not.toContain("write_note");
 		} finally {
 			await client.close();
 		}

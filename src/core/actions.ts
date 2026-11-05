@@ -157,3 +157,24 @@ export function notesActions(o: NotesActionsOptions): NoteAction<unknown, Result
 	const actions = [list, read, search, ...(o.readOnly ? [] : [write])];
 	return actions as unknown as NoteAction<unknown, Result>[];
 }
+
+/**
+ * How to work with the base, for the agent's system prompt (pt-BR, like the tool descriptions): what the tools are
+ * for and in which order, nothing about the base's content, which its own AGENTS.md describes. The MCP server
+ * advertises it as its instructions (Mastra: `forwardInstructions: true`); an in-process host appends it to its own.
+ */
+export function notesInstructions(o: Pick<NotesActionsOptions, "kbName" | "readOnly">): string {
+	const lines = [
+		`Base de notas ${o.kbName} (Markdown, Obsidian). Ferramentas: list_notes, read_note, search_notes${o.readOnly ? "" : ", write_note"}; por MCP elas podem vir com um prefixo (ex.: notes_read_note).`,
+		"- Caminhos são relativos à base: AGENTS.md, pasta/nota.md.",
+		"- Comece pelo AGENTS.md da base, se existir, e siga as regras dele: o que fica em cada nota, o formato, o que registrar e o que não.",
+		"- Para achar: search_notes busca por palavras e por significado (restrinja com folder ou tag quando souber onde está); list_notes lista os caminhos.",
+		"- Antes de afirmar um fato, leia a nota inteira com read_note e cite o caminho. Se não estiver nas notas, diga que não sabe; não invente.",
+	];
+	if (!o.readOnly) {
+		lines.push(
+			"- Para escrever: write_note grava na hora o texto completo final da nota. Para alterar uma nota que existe, leia-a antes e passe o sha em base_sha; se a escrita for recusada porque a nota mudou, leia de novo e refaça a mudança sobre o texto novo. Nunca diga que gravou sem o retorno de write_note.",
+		);
+	}
+	return lines.join("\n");
+}

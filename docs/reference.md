@@ -7,7 +7,7 @@ What each entry point accepts and does. How to wire it in is in the [guide](guid
 
 | Import | What |
 |---|---|
-| `@pitolabs/agent-notes` | Core, no framework: `NotesFolder`, `notesConfig`, `parseNote`, `LibSQLNotesIndex`, `NotesIndexer`, `notesActions` and the input schemas, and `createEmbedder` / `embeddingsConfig` |
+| `@pitolabs/agent-notes` | Core, no framework: `NotesFolder`, `notesConfig`, `parseNote`, `LibSQLNotesIndex`, `NotesIndexer`, `notesActions` and the input schemas, `notesInstructions` (the how-to for the agent's prompt, also the MCP server's instructions), and `createEmbedder` / `embeddingsConfig` |
 | `@pitolabs/agent-notes/mastra` | The core plus `notesTools` and `openAgentNotes` (peer `@mastra/core >= 1.79`) |
 | `agent-notes` (bin) | `agent-notes mcp …`, the MCP server |
 

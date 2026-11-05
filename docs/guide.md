@@ -98,7 +98,15 @@ import { MCPClient } from "@mastra/mcp";
 
 const notes = new MCPClient({
 	id: "clerk-notes",
-	servers: { notes: { url: new URL("http://notes:8070/mcp"), requestInit: { headers: { Authorization: `Bearer ${process.env.NOTES_TOKEN}` } } } },
+	servers: {
+		notes: {
+			url: new URL("http://notes:8070/mcp"),
+			requestInit: { headers: { Authorization: `Bearer ${process.env.NOTES_TOKEN}` } },
+			// The server says how to use the base (search, read before stating, base_sha on writes): into the prompt.
+			forwardInstructions: true,
+			instructionsMaxLength: 2000,
+		},
+	},
 });
 const discover = () => notes.listToolsWithErrors({ perServerTimeoutMs: 3000 });
 
@@ -106,18 +114,22 @@ export const clerk = new Agent({
 	id: "clerk",
 	name: "Clerk",
 	model: "openai/gpt-4o-mini",
-	instructions: async () =>
-		"notes" in (await discover()).errors ? "The notes base is down right now: say so." : "Answer from the notes; read a note before you state a fact from it.",
+	instructions: async () => ("notes" in (await discover()).errors ? "The notes base is down right now: say so." : "You answer the company's questions."),
 	tools: async () => (await discover()).tools, // notes_list_notes, notes_read_note, notes_search_notes, notes_write_note
 });
 ```
+
+The agent's own prompt carries only what is its own: who it is, who it talks to, whether it asks before writing. How
+to work with the base comes from the server (`notesInstructions`), and what the base holds and how its notes are
+written from the base's `AGENTS.md`, which those instructions tell the agent to read first.
 
 Avoid `tools: await notes.listTools()` at module load: it snapshots the tools once, so a server down at start leaves
 the agent without them until a restart, and one that stops later leaves tools whose every call fails.
 
 ## Mastra, in process
 
-`notesTools(options)` returns the four tools keyed by id. Options:
+`notesTools(options)` returns the four tools keyed by id, and `notesInstructions(options)` the same how-to the MCP
+server advertises, to append to the agent's instructions. Options:
 
 - `folder` (`NotesFolder.open({ dir }, log)`) — without it, every tool answers "base indisponível".
 - `index`, `indexer`, `embedder` — from `openAgentNotes({ url, folder, embedder })`; without them, word search.
