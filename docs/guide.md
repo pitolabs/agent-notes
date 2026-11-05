@@ -120,8 +120,9 @@ export const clerk = new Agent({
 ```
 
 The agent's own prompt carries only what is its own: who it is, who it talks to, whether it asks before writing. How
-to work with the base comes from the server (`notesInstructions`), and what the base holds and how its notes are
-written from the base's `AGENTS.md`, which those instructions tell the agent to read first.
+to work with the base and how a note is built (kebab-case path, frontmatter `title`, `aliases`, `created`, `modified`,
+`tags`, wikilinks, small edits) come from the server (`notesInstructions`); what the base holds, and any fields and
+tags of its own, from the base's `AGENTS.md`, which those instructions tell the agent to read first.
 
 Avoid `tools: await notes.listTools()` at module load: it snapshots the tools once, so a server down at start leaves
 the agent without them until a restart, and one that stops later leaves tools whose every call fails.

@@ -160,20 +160,24 @@ export function notesActions(o: NotesActionsOptions): NoteAction<unknown, Result
 
 /**
  * How to work with the base, for the agent's system prompt (pt-BR, like the tool descriptions): what the tools are
- * for and in which order, nothing about the base's content, which its own AGENTS.md describes. The MCP server
- * advertises it as its instructions (Mastra: `forwardInstructions: true`); an in-process host appends it to its own.
+ * for and in which order, and how a note is built (path, frontmatter, links), nothing about the base's content, which
+ * its own AGENTS.md describes along with any fields and tags of its own. The MCP server advertises it as its
+ * instructions (Mastra: `forwardInstructions: true`); an in-process host appends it to its own.
  */
 export function notesInstructions(o: Pick<NotesActionsOptions, "kbName" | "readOnly">): string {
 	const lines = [
 		`Base de notas ${o.kbName} (Markdown, Obsidian). Ferramentas: list_notes, read_note, search_notes${o.readOnly ? "" : ", write_note"}; por MCP elas podem vir com um prefixo (ex.: notes_read_note).`,
 		"- Caminhos são relativos à base: AGENTS.md, pasta/nota.md.",
-		"- Comece pelo AGENTS.md da base, se existir, e siga as regras dele: o que fica em cada nota, o formato, o que registrar e o que não.",
+		"- Comece pelo AGENTS.md da base, se existir, e siga as regras dele: o que fica em cada nota, o que registrar e o que não, e os campos e tags a mais que esta base pede.",
 		"- Para achar: search_notes busca por palavras e por significado (restrinja com folder ou tag quando souber onde está); list_notes lista os caminhos.",
 		"- Antes de afirmar um fato, leia a nota inteira com read_note e cite o caminho. Se não estiver nas notas, diga que não sabe; não invente.",
 	];
 	if (!o.readOnly) {
 		lines.push(
 			"- Para escrever: write_note grava na hora o texto completo final da nota. Para alterar uma nota que existe, leia-a antes e passe o sha em base_sha; se a escrita for recusada porque a nota mudou, leia de novo e refaça a mudança sobre o texto novo. Nunca diga que gravou sem o retorno de write_note.",
+			"- Anatomia de uma nota: caminho em kebab-case, minúsculas, sem acentos, terminando em .md (ex.: precos/2026-11.md; subpastas valem). Começa com frontmatter YAML entre linhas `---`: `title` (o título), `aliases` (lista de outros nomes), `created` e `modified` (datas AAAA-MM-DD) e `tags` (lista); depois o corpo em Markdown, começando por um título `# `. Ao criar, preencha todos; ao alterar, atualize `modified` para hoje e preserve o resto do frontmatter. O AGENTS.md da base pode exigir campos e tags a mais: siga-o.",
+			"- Links entre notas: wikilinks do Obsidian, `[[caminho-sem-.md|Apelido]]` (ex.: `[[precos/2026-11|Preços de novembro]]`).",
+			"- Mudanças pequenas e pontuais: preserve a formatação, o frontmatter e os links que não precisam mudar; não apague nem renomeie notas por conta própria.",
 		);
 	}
 	return lines.join("\n");
