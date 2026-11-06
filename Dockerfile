@@ -5,7 +5,7 @@
 #   docker run -v ~/notes:/notes -v agent-notes-data:/data -p 8070:8070 -e AGENT_NOTES_TOKEN=... agent-notes
 FROM node:24-bookworm-slim@sha256:01d566e8d94d8c619591d78652babfccd3c6992a3dffa9ed5ab39e11cf6c70e9 AS build
 WORKDIR /app
-RUN npm install -g --no-audit --no-fund bun@1.4.2
+RUN npm install -g --no-audit --no-fund bun@1.4.4
 COPY package.json bun.lock tsconfig.json tsconfig.build.json ./
 RUN bun install --frozen-lockfile --ignore-scripts
 COPY src ./src
