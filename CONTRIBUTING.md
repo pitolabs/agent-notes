@@ -12,13 +12,15 @@ bun run typecheck && bun test && bun run format:check
 
 Bun 1.4 (`packageManager` in `package.json`) and Biome 2.6 pinned in `devDependencies`; Biome runs only through
 `scripts/biome.sh`, never from PATH. `bun run format` formats; `bun run build` emits `dist/` (the CLI is
-`dist/cli/main.js`).
+`dist/cli/main.js`). The hooks and the checks CI runs need [mise](https://mise.jdx.dev) (`brew install mise`): it
+installs the gitleaks, jactionlint, zizmor, shellcheck and osv-scanner pinned in `mise.toml`, each checked against
+`mise.lock`; `mise run check` runs them all.
 
 ## The hooks
 
 - **pre-commit** formats the staged files and refuses a commit whose staged changes carry a secret or personal data
-  (`scripts/privacy-scan.sh --staged`: gitleaks with the rules in `.gitleaks.toml`, plus a private blocklist kept
-  outside the repository).
+  (`scripts/privacy-scan.sh --staged`: the mise-pinned gitleaks with the rules in `.gitleaks.toml`, plus a private
+  blocklist kept outside the repository).
 - **pre-push** runs the same scan over every outgoing commit, and requires every author/committer e-mail to be a
   GitHub noreply address: `git config user.email "<id>+<login>@users.noreply.github.com"` (`gh api user --jq .id`).
 
@@ -30,6 +32,10 @@ use fictional identities: a Brazilian-shaped phone number is refused even when m
 `bun test` runs everything under `test/` against temporary folders, an in-memory libSQL and a stub embedder (in
 process, or a local `/embeddings` server for the MCP tests); no network, no keys. Keep new tests deterministic and
 about behaviour a consumer can see.
+
+## Security
+
+Report a vulnerability privately, as [SECURITY.md](SECURITY.md) says; not in a public issue.
 
 ## Releasing
 
